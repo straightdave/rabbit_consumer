@@ -9,7 +9,7 @@ defmodule RabbitConsumer do
     proc_fn = Keyword.get(args, :process_fn, :process)
     ex = Keyword.get(args, :exchange, "")
     ex_type = Keyword.get(args, :exchange_type, :direct)
-    q = Keyword.get(args, :queue_name, "")
+    q = Keyword.get(args, :queue, "")
     q_opts = Keyword.get(args, :queue_opts, [])
     binding_keys = Keyword.get(args, :binding_keys, [])
 
