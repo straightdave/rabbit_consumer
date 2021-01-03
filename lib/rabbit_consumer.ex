@@ -4,7 +4,8 @@ defmodule RabbitConsumer do
   """
 
   defmacro __using__(args) do
-    addr = Keyword.get(args, :address, "localhost:5672")
+    host = Keyword.get(args, :host, "localhost")
+    port = Keyword.get(args, :port, 5672)
     proc_fn = Keyword.get(args, :process_fn, :process)
     ex = Keyword.get(args, :exchange, "")
     ex_type = Keyword.get(args, :exchange_type, :direct)
@@ -15,7 +16,8 @@ defmodule RabbitConsumer do
     quote do
       @me __MODULE__
 
-      @addr unquote(addr)
+      @host unquote(host)
+      @port unquote(port)
       @proc_fn unquote(proc_fn)
       @ex unquote(ex)
       @ex_type unquote(ex_type)
@@ -24,7 +26,6 @@ defmodule RabbitConsumer do
       @binding_keys unquote(binding_keys)
 
       use GenServer
-      require Logger
 
       def on_ready(), do: IO.puts("#{@me} as RabbitConsumer is ready.")
       def on_ending(), do: IO.puts("#{@me} as RabbitConsumer is leaving.")
@@ -37,7 +38,7 @@ defmodule RabbitConsumer do
 
       @impl GenServer
       def init(_) do
-        case AMQP.Connection.open(host: @addr) do
+        case AMQP.Connection.open(host: @host, port: @port) do
           {:ok, conn} ->
             {:ok, chan} = AMQP.Channel.open(conn)
             AMQP.Exchange.declare(chan, @ex, @ex_type)
@@ -48,14 +49,14 @@ defmodule RabbitConsumer do
             end
 
             AMQP.Basic.consume(chan, queue_name, nil, no_ack: true)
-            apply(@me, :on_ready)
+            apply(@me, :on_ready, [])
             wait_for_msg()
-            apply(@me, :on_ending)
+            apply(@me, :on_ending, [])
             AMQP.Connection.close(conn)
             {:ok, []}
 
           {:error, reason} ->
-            Logger.error("Failed to connect to Rabbit: #{reason}")
+            IO.puts("Failed to connect to Rabbit: #{reason}")
             {:stop, reason}
 
           _ ->
@@ -66,7 +67,18 @@ defmodule RabbitConsumer do
       defp wait_for_msg() do
         receive do
           {_deliver, payload, meta} ->
-            apply(@me, @proc_fn, payload: payload, meta: meta)
+            case apply(@me, @proc_fn, [payload, meta]) do
+              :stop ->
+                IO.puts("stopped")
+                nil
+
+              any ->
+                IO.puts("#{inspect(any)}")
+                wait_for_msg()
+            end
+
+          any ->
+            IO.puts("non-deliver msg from Rabbit: #{inspect(any)}")
             wait_for_msg()
         end
       end
