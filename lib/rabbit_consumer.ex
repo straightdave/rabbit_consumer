@@ -1,6 +1,6 @@
 defmodule RabbitConsumer do
   @moduledoc """
-  Splendid Rabbit Consumer
+  Splendid RabbitMQ Consumer Mixin
   """
 
   defmacro __using__(args) do
